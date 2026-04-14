@@ -1,0 +1,356 @@
+You are given an existing full-stack project with folders:
+
+* client/ (React frontend)
+* server/ (Node.js backend)
+* shared/ (common logic)
+
+Your task is to MODIFY and UPGRADE this project into a complete production-ready "3 Batti Color & Number Game Platform" with advanced Admin Panel, Wallet, Referral System, Multi-UPI system, and real-time features.
+
+⚠️ IMPORTANT RULES:
+
+* Do NOT create new project
+* Modify existing files and structure
+* Keep current architecture intact
+* Ensure no breaking changes
+* Final system must be fully working and production-ready
+
+---
+
+🔥 CORE FEATURES:
+
+1. USER SYSTEM:
+
+* Signup/Login (JWT authentication)
+* Secure password (bcrypt)
+* Store user data in PostgreSQL (Neon DB)
+
+---
+
+2. REFERRAL SYSTEM:
+
+* Generate unique referral_code for each user
+* On signup:
+
+  * User can enter referral code
+  * Bonus added to both users
+* Track:
+
+  * total referrals
+  * referral earnings
+
+---
+
+3. WALLET SYSTEM:
+
+* Wallet balance + bonus wallet
+* Transactions table:
+
+  * deposit
+  * withdraw
+  * win/loss
+
+---
+
+4. MULTI UPI SYSTEM (IMPORTANT):
+
+Create table: upi_accounts
+
+* id
+* upi_id
+* qr_code
+* status (active/inactive)
+
+LOGIC:
+
+* When user clicks "Add Money":
+
+  * Show RANDOM active UPI ID
+  * Rotate UPI automatically
+  * Show QR + copy button
+
+USER FLOW:
+
+* User pays manually
+* Enters UTR ID
+* Status: pending
+
+ADMIN:
+
+* Approve → wallet credit
+* Reject → reason
+
+---
+
+5. GAME SYSTEM:
+
+Game times (auto daily):
+
+* 09:00 AM
+* 01:00 PM
+* 05:00 PM
+* 09:00 PM
+
+Game states:
+
+* upcoming → live → locked → completed
+
+Each game:
+
+* result_color (Red/Yellow/Green)
+* result_number (0–9)
+
+---
+
+6. BETTING SYSTEM:
+
+User can:
+
+* Bet on color (Red, Yellow, Green)
+* Bet on number (0–9)
+* Place multiple bets
+
+LOGIC:
+
+* Deduct wallet
+* Store bets
+* After result:
+
+  * Calculate winners
+  * Update wallet
+
+---
+
+7. ADMIN PANEL (SUPER ADVANCED):
+
+A. DASHBOARD:
+
+* Total users
+* Active users
+* Total bets today
+* Total deposits
+* Total withdrawals
+* Profit overview
+* Graphs (charts)
+
+---
+
+B. LIVE BET MONITOR (REAL-TIME):
+
+* Show:
+
+  * user name
+  * bet type
+  * value
+  * amount
+
+* Show totals:
+
+  * per color
+  * per number
+
+* Highlight:
+
+  * most selected option
+
+---
+
+C. RESULT CONTROL (IMPORTANT):
+
+* Admin can:
+
+  * Set next result (color + number)
+  * View next result preview
+  * Change result before game lock
+
+---
+
+D. PROFIT ANALYSIS PANEL:
+
+* Show total money on:
+
+  * Red / Yellow / Green
+  * Numbers 0–9
+
+* Show:
+
+  * estimated payout
+  * profit/loss per option
+
+---
+
+E. PAYMENT MANAGEMENT:
+
+* View deposits
+
+* Filter pending/approved
+
+* Verify UTR
+
+* Approve → wallet update
+
+* Reject → reason
+
+* Track:
+
+  * which UPI ID received payment
+
+---
+
+F. WITHDRAW MANAGEMENT:
+
+* View withdraw requests
+* Approve / Reject
+* Store logs
+
+---
+
+G. USER MANAGEMENT:
+
+* View all users
+
+* Search/filter
+
+* View:
+
+  * wallet
+  * bets
+  * transactions
+
+* Actions:
+
+  * edit wallet
+  * ban/unban
+
+---
+
+H. UPI MANAGEMENT:
+
+* Add multiple UPI IDs (minimum 30)
+* Upload QR codes
+* Activate/Deactivate UPI
+
+---
+
+I. SETTINGS PANEL:
+
+* Min bet / max bet
+* Referral bonus
+* Game lock time
+* Commission %
+
+---
+
+J. ADMIN LOGS:
+
+* Track all actions:
+
+  * result change
+  * payment approval
+  * user edits
+
+---
+
+8. REAL-TIME FEATURES (Socket.io):
+
+* Live bets update
+* Live dashboard
+* Game countdown sync
+
+---
+
+9. FRONTEND (client/):
+
+* Modern UI:
+
+  * Dark theme
+  * Neon green + gold accents
+  * Glow buttons
+
+USER UI:
+
+* Login/Register
+* Wallet
+* Add money (UPI + QR + UTR)
+* Withdraw
+* Game screen:
+
+  * Color buttons
+  * Number buttons
+  * Timer
+* History
+
+ADMIN UI:
+
+* Sidebar layout
+* Dashboard
+* Game control
+* Users
+* Payments
+* Settings
+
+---
+
+10. MOBILE APP (Expo):
+
+* Use same APIs
+* Screens:
+
+  * Login
+  * Wallet
+  * Game
+* Ensure APK build works
+
+---
+
+11. DATABASE:
+
+Use PostgreSQL (Neon DB via DATABASE_URL)
+
+Ensure:
+
+* Proper indexing
+* Relations
+* Scalable schema
+
+---
+
+12. SECURITY:
+
+* JWT authentication
+* bcrypt hashing
+* Input validation
+* Role-based access
+* Rate limiting
+
+---
+
+13. DEPLOYMENT:
+
+Backend (Render):
+
+* npm install
+* node server.js
+
+Frontend (Hostinger):
+
+* npm run build
+* Upload dist folder
+
+---
+
+14. ENV VARIABLES:
+
+JWT_SECRET=your_secret
+DATABASE_URL=your_neon_db_url
+
+---
+
+15. FINAL REQUIREMENTS:
+
+* Fully working system
+* No errors
+* Clean and scalable code
+* Proper folder structure
+* Production-ready
+
+---

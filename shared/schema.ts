@@ -9,13 +9,25 @@ export const users = pgTable("users", {
   phone: text("phone").notNull().unique(),
   password: text("password").notNull(),
   balance: integer("balance").notNull().default(0),
+  bonusBalance: integer("bonus_balance").notNull().default(0),
   isAdmin: boolean("is_admin").notNull().default(false),
+  isBanned: boolean("is_banned").notNull().default(false),
   referralCode: text("referral_code").notNull().unique(),
   referredBy: integer("referred_by"),
   bankName: text("bank_name"),
   ifscCode: text("ifsc_code"),
   accountNumber: text("account_number"),
   accountHolderName: text("account_holder_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const upiAccounts = pgTable("upi_accounts", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  upiId: text("upi_id").notNull(),
+  upiName: text("upi_name").notNull().default("3 Batti Game"),
+  qrCode: text("qr_code"),
+  status: text("status").notNull().default("active"),
+  totalReceived: integer("total_received").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -51,6 +63,7 @@ export const transactions = pgTable("transactions", {
   utrId: text("utr_id"),
   referenceId: text("reference_id"),
   upiApp: text("upi_app"),
+  upiAccountId: integer("upi_account_id"),
   note: text("note"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -73,6 +86,16 @@ export const settings = pgTable("settings", {
   key: text("key").notNull().unique(),
   value: text("value").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const adminLogs = pgTable("admin_logs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  adminId: integer("admin_id"),
+  action: text("action").notNull(),
+  details: text("details"),
+  targetId: text("target_id"),
+  targetType: text("target_type"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -102,12 +125,15 @@ export const submitDepositSchema = z.object({
   paymentId: z.string(),
   utrId: z.string().min(6),
   upiApp: z.string().optional(),
+  upiAccountId: z.number().optional(),
 });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpiAccount = typeof upiAccounts.$inferSelect;
 export type GameRound = typeof gameRounds.$inferSelect;
 export type Bet = typeof bets.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
 export type GameState = typeof gameState.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
+export type AdminLog = typeof adminLogs.$inferSelect;

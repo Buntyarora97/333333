@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
+import { WebSocketServer, WebSocket } from "ws";
 import session from "express-session";
 import { storage } from "./storage";
 import { gameEngine } from "./game-engine";
@@ -18,6 +19,19 @@ declare module "express-session" {
 const ADMIN_PHONE = process.env.ADMIN_PHONE || "9999999999";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 
+// WebSocket clients set
+let wss: WebSocketServer | null = null;
+
+export function broadcastToAll(data: any) {
+  if (!wss) return;
+  const msg = JSON.stringify(data);
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(msg);
+    }
+  });
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(
     session({
@@ -33,6 +47,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   await gameEngine.initialize();
+  await storage.initDefaultSettings();
 
   // Serve web admin panel
   app.get("/admin", (_req: Request, res: Response) => {
@@ -54,13 +69,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existing) return res.status(400).json({ error: "Phone number already registered" });
 
       let referredBy: number | null = null;
+      let referralBonus = 0;
       if (referralCodeUsed) {
         const referrer = await storage.getUserByReferralCode(referralCodeUsed);
-        if (referrer) referredBy = referrer.id;
+        if (referrer) {
+          referredBy = referrer.id;
+          const bonusStr = await storage.getSetting("referral_bonus");
+          referralBonus = parseInt(bonusStr || "50");
+        }
       }
 
       const referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const user = await storage.createUser({ ...data, referralCode, referredBy });
+
+      if (referralBonus > 0 && referredBy) {
+        await storage.updateUserBalance(referredBy, referralBonus);
+        await storage.createTransaction(referredBy, "referral_bonus", referralBonus, "completed", undefined, undefined, undefined, `Referral bonus for inviting ${user.username}`);
+        await storage.updateUserBalance(user.id, referralBonus);
+        await storage.createTransaction(user.id, "signup_bonus", referralBonus, "completed", undefined, undefined, undefined, `Signup bonus via referral`);
+      }
 
       req.session.userId = user.id;
       req.session.isAdmin = user.isAdmin;
@@ -81,7 +108,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let admin = await storage.getUserByPhone(ADMIN_PHONE);
         if (!admin) {
           admin = await storage.createUser({ username: "Admin", phone: ADMIN_PHONE, password: ADMIN_PASSWORD, referralCode: "ADMIN0", isAdmin: true });
-          await storage.updateUserBalance(admin.id, 0);
         }
         req.session.userId = admin.id;
         req.session.isAdmin = true;
@@ -91,6 +117,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUserByPhone(data.phone);
       if (!user || user.password !== data.password) {
         return res.status(401).json({ error: "Invalid phone or password" });
+      }
+      if (user.isBanned) {
+        return res.status(403).json({ error: "Your account has been suspended. Contact support." });
       }
 
       req.session.userId = user.id;
@@ -159,8 +188,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Number is required for number bet" });
       }
 
+      const minBet = parseInt(await storage.getSetting("min_bet") || "10");
+      const maxBet = parseInt(await storage.getSetting("max_bet") || "10000");
+      if (data.betAmount < minBet) return res.status(400).json({ error: `Minimum bet is ₹${minBet}` });
+      if (data.betAmount > maxBet) return res.status(400).json({ error: `Maximum bet is ₹${maxBet}` });
+
       const user = await storage.getUser(req.session.userId);
       if (!user) return res.status(401).json({ error: "User not found" });
+      if (user.isBanned) return res.status(403).json({ error: "Account suspended" });
       if (user.balance < data.betAmount) {
         return res.status(400).json({ error: "Insufficient balance" });
       }
@@ -178,6 +213,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       const updatedUser = await storage.getUser(user.id);
+
+      // Broadcast live bet to admin watchers
+      broadcastToAll({ type: "new_bet", bet: { ...bet, username: user.username }, roundId: state.currentRound });
+
       res.json({ bet, balance: updatedUser?.balance || 0 });
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors[0].message });
@@ -224,21 +263,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session.userId) return res.status(401).json({ error: "Not authenticated" });
     try {
       const { amount } = addMoneySchema.parse(req.body);
-      const upiId = await storage.getSetting("upi_id") || "admin@upi";
-      const upiName = await storage.getSetting("upi_name") || "3 Batti Game";
+
+      // Try multi-UPI rotation first
+      const upiAccount = await storage.getRandomActiveUpi();
+
+      let upiId: string;
+      let upiName: string;
+      let upiQr: string = "";
+      let upiAccountId: number | undefined;
+
+      if (upiAccount) {
+        upiId = upiAccount.upiId;
+        upiName = upiAccount.upiName;
+        upiQr = upiAccount.qrCode || "";
+        upiAccountId = upiAccount.id;
+      } else {
+        // Fallback to settings
+        upiId = await storage.getSetting("upi_id") || "admin@upi";
+        upiName = await storage.getSetting("upi_name") || "3 Batti Game";
+        upiQr = await storage.getSetting("upi_qr") || "";
+      }
+
       const paymentId = `PAY_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 
       res.json({
         upiId,
         upiName,
+        upiQr,
+        upiAccountId,
         amount,
         paymentId,
         qrData: `upi://pay?pa=${upiId}&pn=${encodeURIComponent(upiName)}&am=${amount}&cu=INR&tn=${paymentId}`,
         apps: [
-          { name: "PhonePe", package: "com.phonepe.app", deeplink: `phonepe://pay?pa=${upiId}&pn=${encodeURIComponent(upiName)}&am=${amount}&tn=${paymentId}` },
-          { name: "Google Pay", package: "com.google.android.apps.nbu.paisa.user", deeplink: `gpay://upi/pay?pa=${upiId}&pn=${encodeURIComponent(upiName)}&am=${amount}&tn=${paymentId}` },
-          { name: "Paytm", package: "net.one97.paytm", deeplink: `paytmmp://pay?pa=${upiId}&pn=${encodeURIComponent(upiName)}&am=${amount}&tn=${paymentId}` },
-          { name: "Other UPI", package: "", deeplink: `upi://pay?pa=${upiId}&pn=${encodeURIComponent(upiName)}&am=${amount}&tn=${paymentId}` },
+          { name: "PhonePe", deeplink: `phonepe://pay?pa=${upiId}&pn=${encodeURIComponent(upiName)}&am=${amount}&tn=${paymentId}` },
+          { name: "Google Pay", deeplink: `gpay://upi/pay?pa=${upiId}&pn=${encodeURIComponent(upiName)}&am=${amount}&tn=${paymentId}` },
+          { name: "Paytm", deeplink: `paytmmp://pay?pa=${upiId}&pn=${encodeURIComponent(upiName)}&am=${amount}&tn=${paymentId}` },
+          { name: "Other UPI", deeplink: `upi://pay?pa=${upiId}&pn=${encodeURIComponent(upiName)}&am=${amount}&tn=${paymentId}` },
         ],
       });
     } catch (error) {
@@ -253,7 +313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = submitDepositSchema.parse(req.body);
       const transaction = await storage.createTransaction(
         req.session.userId, "deposit", data.amount, "pending",
-        data.paymentId, data.utrId, data.upiApp, "Awaiting admin verification"
+        data.paymentId, data.utrId, data.upiApp, "Awaiting admin verification", data.upiAccountId
       );
       res.json({ success: true, transaction, message: "Deposit request submitted. Admin will verify within 24 hours." });
     } catch (error) {
@@ -276,13 +336,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session.userId) return res.status(401).json({ error: "Not authenticated" });
     try {
       const { amount, bankName, ifscCode, accountNumber, accountHolderName, upiId } = req.body;
-      if (!amount || amount < 100) {
-        return res.status(400).json({ error: "Minimum withdrawal amount is ₹100" });
+      const minWithdraw = parseInt(await storage.getSetting("min_withdraw") || "100");
+      if (!amount || amount < minWithdraw) {
+        return res.status(400).json({ error: `Minimum withdrawal amount is ₹${minWithdraw}` });
       }
       const user = await storage.getUser(req.session.userId);
       if (!user || user.balance < amount) {
         return res.status(400).json({ error: "Insufficient balance" });
       }
+      if (user.isBanned) return res.status(403).json({ error: "Account suspended" });
 
       if (bankName || ifscCode || accountNumber || accountHolderName) {
         await storage.updateUserBankDetails(user.id, { bankName, ifscCode, accountNumber, accountHolderName });
@@ -314,6 +376,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===================== PUBLIC UPI =====================
+  app.get("/api/upi-settings", async (req: Request, res: Response) => {
+    try {
+      const upiId = await storage.getSetting("upi_id") || "";
+      const upiName = await storage.getSetting("upi_name") || "3 Batti Game";
+      res.json({ upiId, upiName });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get UPI settings" });
+    }
+  });
+
   // ===================== ADMIN =====================
   const requireAdmin = (req: Request, res: Response, next: any) => {
     if (!req.session.isAdmin) return res.status(403).json({ error: "Admin access required" });
@@ -334,18 +407,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dashboard stats
+  app.get("/api/admin/dashboard", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const stats = await storage.getDashboardStats();
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get dashboard stats" });
+    }
+  });
+
+  // Users
   app.get("/api/admin/users", requireAdmin, async (req: Request, res: Response) => {
     try {
       const allUsers = await storage.getAllUsers();
       res.json(allUsers.map((u) => ({
         id: u.id, username: u.username, phone: u.phone, balance: u.balance,
-        isAdmin: u.isAdmin, referralCode: u.referralCode, createdAt: u.createdAt,
+        isAdmin: u.isAdmin, isBanned: u.isBanned, referralCode: u.referralCode, createdAt: u.createdAt,
       })));
     } catch (error) {
       res.status(500).json({ error: "Failed to get users" });
     }
   });
 
+  app.post("/api/admin/ban-user", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { userId, banned } = req.body;
+      const user = await storage.banUser(userId, !!banned);
+      await storage.createAdminLog(req.session.userId, banned ? "ban_user" : "unban_user", `User ${user?.username}`, String(userId), "user");
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update user status" });
+    }
+  });
+
+  app.post("/api/admin/add-balance", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { userId, amount } = req.body;
+      if (!userId || typeof amount !== "number") return res.status(400).json({ error: "Invalid request" });
+      const user = await storage.updateUserBalance(userId, amount);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      await storage.createTransaction(userId, "admin_credit", amount, "completed", undefined, undefined, undefined, "Admin manual credit");
+      await storage.createAdminLog(req.session.userId, "edit_balance", `Added ₹${amount} to user ${user.username}`, String(userId), "user");
+      res.json({ success: true, newBalance: user.balance });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to add balance" });
+    }
+  });
+
+  // Game control
   app.post("/api/admin/set-result", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { color, number } = req.body;
@@ -353,6 +463,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid color" });
       }
       await gameEngine.setNextResult(color, number !== undefined ? parseInt(number) : undefined);
+      await storage.createAdminLog(req.session.userId, "set_result", `Set result: ${color} / #${number ?? "random"}`, undefined, "game");
       res.json({ success: true, message: `Next result set to ${color} / #${number ?? "random"}` });
     } catch (error) {
       res.status(500).json({ error: "Failed to set result" });
@@ -369,19 +480,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/admin/add-balance", requireAdmin, async (req: Request, res: Response) => {
+  app.get("/api/admin/profit-analysis", requireAdmin, async (req: Request, res: Response) => {
     try {
-      const { userId, amount } = req.body;
-      if (!userId || typeof amount !== "number") return res.status(400).json({ error: "Invalid request" });
-      const user = await storage.updateUserBalance(userId, amount);
-      if (!user) return res.status(404).json({ error: "User not found" });
-      await storage.createTransaction(userId, "admin_credit", amount, "completed");
-      res.json({ success: true, newBalance: user.balance });
+      const analysis = await storage.getProfitAnalysis();
+      res.json(analysis);
     } catch (error) {
-      res.status(500).json({ error: "Failed to add balance" });
+      res.status(500).json({ error: "Failed to get profit analysis" });
     }
   });
 
+  // Transactions
   app.get("/api/admin/pending-transactions", requireAdmin, async (req: Request, res: Response) => {
     try {
       const pending = await storage.getPendingTransactions();
@@ -393,7 +501,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/all-transactions", requireAdmin, async (req: Request, res: Response) => {
     try {
-      const txns = await storage.getAllTransactions(200);
+      const txns = await storage.getAllTransactionsWithUser(200);
       res.json(txns);
     } catch (error) {
       res.status(500).json({ error: "Failed to get transactions" });
@@ -409,6 +517,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       await storage.updateTransactionStatus(transactionId, "completed", "Approved by admin");
       await storage.updateUserBalance(txn.userId, txn.amount);
+      if (txn.upiAccountId) {
+        await storage.incrementUpiReceived(txn.upiAccountId, txn.amount);
+      }
+      await storage.createAdminLog(req.session.userId, "approve_deposit", `Approved deposit ₹${txn.amount} UTR:${txn.utrId}`, String(transactionId), "transaction");
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to approve deposit" });
@@ -426,6 +538,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateUserBalance(txn.userId, txn.amount);
       }
       await storage.updateTransactionStatus(transactionId, "rejected", reason || "Rejected by admin");
+      await storage.createAdminLog(req.session.userId, "reject_transaction", `Rejected ${txn.type} ₹${txn.amount}: ${reason}`, String(transactionId), "transaction");
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to reject transaction" });
@@ -440,13 +553,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid or already processed transaction" });
       }
       await storage.updateTransactionStatus(transactionId, "completed", "Processed by admin");
+      await storage.createAdminLog(req.session.userId, "approve_withdrawal", `Approved withdrawal ₹${txn.amount}`, String(transactionId), "transaction");
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to approve withdrawal" });
     }
   });
 
-  // UPI Settings
+  // UPI Accounts (Multi-UPI)
+  app.get("/api/admin/upi-accounts", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const accounts = await storage.getAllUpiAccounts();
+      res.json(accounts);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get UPI accounts" });
+    }
+  });
+
+  app.post("/api/admin/upi-accounts", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { upiId, upiName, qrCode } = req.body;
+      if (!upiId) return res.status(400).json({ error: "UPI ID is required" });
+      const account = await storage.createUpiAccount(upiId, upiName || "3 Batti Game", qrCode);
+      await storage.createAdminLog(req.session.userId, "add_upi", `Added UPI: ${upiId}`, String(account.id), "upi");
+      res.json(account);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to add UPI account" });
+    }
+  });
+
+  app.put("/api/admin/upi-accounts/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { upiId, upiName, qrCode, status } = req.body;
+      const updates: any = {};
+      if (upiId !== undefined) updates.upiId = upiId;
+      if (upiName !== undefined) updates.upiName = upiName;
+      if (qrCode !== undefined) updates.qrCode = qrCode;
+      if (status !== undefined) updates.status = status;
+      const account = await storage.updateUpiAccount(id, updates);
+      await storage.createAdminLog(req.session.userId, "update_upi", `Updated UPI ${id}: ${JSON.stringify(updates)}`, String(id), "upi");
+      res.json(account);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update UPI account" });
+    }
+  });
+
+  app.delete("/api/admin/upi-accounts/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteUpiAccount(id);
+      await storage.createAdminLog(req.session.userId, "delete_upi", `Deleted UPI account ${id}`, String(id), "upi");
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete UPI account" });
+    }
+  });
+
+  // Legacy UPI settings (single)
   app.get("/api/admin/upi-settings", requireAdmin, async (req: Request, res: Response) => {
     try {
       const upiId = await storage.getSetting("upi_id") || "";
@@ -470,16 +634,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/upi-settings", async (req: Request, res: Response) => {
+  // Settings panel
+  app.get("/api/admin/settings", requireAdmin, async (req: Request, res: Response) => {
     try {
-      const upiId = await storage.getSetting("upi_id") || "";
-      const upiName = await storage.getSetting("upi_name") || "3 Batti Game";
-      res.json({ upiId, upiName });
+      const all = await storage.getAllSettings();
+      const map: Record<string, string> = {};
+      for (const s of all) map[s.key] = s.value;
+      res.json(map);
     } catch (error) {
-      res.status(500).json({ error: "Failed to get UPI settings" });
+      res.status(500).json({ error: "Failed to get settings" });
     }
   });
 
+  app.post("/api/admin/settings", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const allowed = ["min_bet", "max_bet", "referral_bonus", "commission_l1", "commission_l2", "gst_rate", "color_multiplier", "number_multiplier", "min_withdraw", "max_withdraw"];
+      for (const key of allowed) {
+        if (req.body[key] !== undefined) {
+          await storage.setSetting(key, String(req.body[key]));
+        }
+      }
+      await storage.createAdminLog(req.session.userId, "update_settings", `Updated settings: ${Object.keys(req.body).join(", ")}`, undefined, "settings");
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update settings" });
+    }
+  });
+
+  // Admin logs
+  app.get("/api/admin/logs", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const logs = await storage.getAdminLogs(100);
+      res.json(logs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get admin logs" });
+    }
+  });
+
+  // Rounds
   app.get("/api/admin/rounds", requireAdmin, async (req: Request, res: Response) => {
     try {
       const rounds = await storage.getRecentRounds(50);
@@ -490,5 +682,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+
+  // WebSocket server
+  wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+  wss.on("connection", (ws) => {
+    ws.on("error", (err) => console.error("WS error:", err));
+    ws.send(JSON.stringify({ type: "connected", message: "Connected to 3 Batti live feed" }));
+  });
+
+  // Broadcast game state every second
+  setInterval(async () => {
+    try {
+      if (!wss || wss.clients.size === 0) return;
+      const state = await gameEngine.getState();
+      broadcastToAll({ type: "game_state", phase: state.phase, countdown: state.countdown, currentRound: state.currentRound, lastResult: state.lastResult, lastResultNumber: state.lastResultNumber });
+    } catch (_) {}
+  }, 2000);
+
   return httpServer;
 }
