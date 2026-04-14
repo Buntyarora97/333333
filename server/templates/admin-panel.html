@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>3 Batti - Admin Panel</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
+  :root { --green: #2ea043; --red: #f85149; --yellow: #d29922; --blue: #388bfd; --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d; --text: #e6edf3; --text2: #8b949e; }
+
+  /* Login */
+  #login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .login-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 40px; width: 360px; }
+  .login-logo { text-align: center; margin-bottom: 28px; }
+  .login-logo h1 { font-size: 28px; font-weight: 700; color: var(--yellow); }
+  .login-logo p { font-size: 13px; color: var(--text2); margin-top: 4px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px; }
+  .form-group input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 14px; outline: none; transition: border-color .2s; }
+  .form-group input:focus { border-color: var(--blue); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all .2s; text-decoration: none; }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-primary:hover { background: #1f6feb; }
+  .btn-success { background: var(--green); color: #fff; }
+  .btn-success:hover { background: #238636; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-danger:hover { background: #da3633; }
+  .btn-warning { background: var(--yellow); color: #000; }
+  .btn-warning:hover { background: #bb8009; }
+  .btn-outline { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .btn-outline:hover { background: var(--bg3); color: var(--text); }
+  .btn-full { width: 100%; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+  /* Layout */
+  #app { display: none; min-height: 100vh; }
+  .sidebar { position: fixed; top: 0; left: 0; width: 240px; height: 100vh; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 100; }
+  .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border); }
+  .sidebar-header h2 { font-size: 18px; font-weight: 700; color: var(--yellow); }
+  .sidebar-header p { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .sidebar-nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; color: var(--text2); font-size: 14px; transition: all .15s; border-left: 3px solid transparent; }
+  .nav-item:hover { background: var(--bg3); color: var(--text); }
+  .nav-item.active { background: rgba(56,139,253,0.1); color: var(--blue); border-left-color: var(--blue); }
+  .nav-item .icon { font-size: 18px; width: 20px; text-align: center; }
+  .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); }
+  .main { margin-left: 240px; padding: 24px; min-height: 100vh; }
+
+  /* Pages */
+  .page { display: none; }
+  .page.active { display: block; }
+  .page-header { margin-bottom: 24px; }
+  .page-header h1 { font-size: 22px; font-weight: 700; }
+  .page-header p { font-size: 13px; color: var(--text2); margin-top: 4px; }
+
+  /* Cards */
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .card-title { font-size: 14px; font-weight: 600; color: var(--text2); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .stat-value { font-size: 28px; font-weight: 700; }
+  .stat-label { font-size: 12px; color: var(--text2); margin-top: 4px; }
+  .stat-green { color: var(--green); }
+  .stat-blue { color: var(--blue); }
+  .stat-yellow { color: var(--yellow); }
+  .stat-red { color: var(--red); }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { border-bottom: 1px solid var(--border); }
+  th { text-align: left; padding: 10px 12px; color: var(--text2); font-weight: 600; font-size: 12px; }
+  td { padding: 10px 12px; border-bottom: 1px solid rgba(48,54,61,0.5); vertical-align: middle; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* Badge */
+  .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: rgba(46,160,67,0.15); color: var(--green); }
+  .badge-red { background: rgba(248,81,73,0.15); color: var(--red); }
+  .badge-yellow { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .badge-blue { background: rgba(56,139,253,0.15); color: var(--blue); }
+  .badge-gray { background: rgba(139,148,158,0.15); color: var(--text2); }
+
+  /* Color dots */
+  .dot { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
+  .dot-red { background: #f85149; }
+  .dot-yellow { background: #d29922; }
+  .dot-green { background: #2ea043; }
+
+  /* Game control */
+  .color-btns { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .color-btn { padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: 2px solid transparent; transition: all .2s; }
+  .color-btn.red { background: rgba(248,81,73,0.15); color: #f85149; border-color: rgba(248,81,73,0.3); }
+  .color-btn.yellow { background: rgba(210,153,34,0.15); color: #d29922; border-color: rgba(210,153,34,0.3); }
+  .color-btn.green { background: rgba(46,160,67,0.15); color: #2ea043; border-color: rgba(46,160,67,0.3); }
+  .color-btn.selected { border-width: 2px; }
+  .color-btn.red.selected { background: rgba(248,81,73,0.35); border-color: #f85149; }
+  .color-btn.yellow.selected { background: rgba(210,153,34,0.35); border-color: #d29922; }
+  .color-btn.green.selected { background: rgba(46,160,67,0.35); border-color: #2ea043; }
+  .num-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .num-btn { width: 40px; height: 40px; border-radius: 8px; background: var(--bg3); border: 2px solid var(--border); color: var(--text); font-size: 15px; font-weight: 700; cursor: pointer; transition: all .2s; }
+  .num-btn.selected { background: rgba(56,139,253,0.3); border-color: var(--blue); color: var(--blue); }
+
+  /* Phase indicator */
+  .phase-card { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--bg3); border-radius: 10px; margin-bottom: 20px; }
+  .phase-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .phase-waiting { background: var(--yellow); }
+  .phase-betting { background: var(--green); animation: pulse 1s infinite; }
+  .phase-result { background: var(--blue); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* Live bet bars */
+  .live-bar { margin-bottom: 10px; }
+  .live-bar-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+  .live-bar-track { background: var(--bg3); border-radius: 4px; height: 8px; overflow: hidden; }
+  .live-bar-fill { height: 100%; border-radius: 4px; transition: width .5s; }
+  .fill-red { background: var(--red); }
+  .fill-yellow { background: var(--yellow); }
+  .fill-green { background: var(--green); }
+
+  /* UPI */
+  .upi-display { background: var(--bg3); border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .upi-id-text { font-size: 16px; font-weight: 600; font-family: monospace; }
+  .copy-btn { background: var(--bg2); border: 1px solid var(--border); color: var(--text2); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; transition: all .2s; }
+  .copy-btn:hover { background: var(--bg3); color: var(--text); }
+  .copied { color: var(--green) !important; border-color: var(--green) !important; }
+
+  /* Misc */
+  .input { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 14px; outline: none; width: 100%; transition: border-color .2s; }
+  .input:focus { border-color: var(--blue); }
+  .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .col { flex: 1; min-width: 120px; }
+  .label { font-size: 12px; color: var(--text2); margin-bottom: 6px; display: block; }
+  .alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+  .alert-success { background: rgba(46,160,67,0.1); border: 1px solid rgba(46,160,67,0.3); color: var(--green); }
+  .alert-error { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); color: var(--red); }
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  .tab { padding: 10px 20px; cursor: pointer; font-size: 13px; color: var(--text2); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .2s; }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .countdown-big { font-size: 36px; font-weight: 700; font-family: monospace; text-align: center; padding: 12px; }
+  .btn-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  @media (max-width: 768px) {
+    .sidebar { transform: translateX(-100%); }
+    .main { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <h1>🚦 3 Batti</h1>
+      <p>Admin Panel</p>
+    </div>
+    <div id="login-error" class="alert alert-error" style="display:none"></div>
+    <div class="form-group">
+      <label>Phone Number</label>
+      <input type="tel" id="login-phone" placeholder="9999999999" />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="Enter password" />
+    </div>
+    <button class="btn btn-primary btn-full" onclick="doLogin()">Login to Admin Panel</button>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>🚦 3 Batti</h2>
+      <p>Admin Panel</p>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" onclick="nav('dashboard')"><span class="icon">📊</span> Dashboard</div>
+      <div class="nav-item" onclick="nav('game')"><span class="icon">🚦</span> Game Control</div>
+      <div class="nav-item" onclick="nav('upi')"><span class="icon">💳</span> UPI Settings</div>
+      <div class="nav-item" onclick="nav('users')"><span class="icon">👥</span> Users</div>
+      <div class="nav-item" onclick="nav('deposits')"><span class="icon">⬇️</span> Deposits</div>
+      <div class="nav-item" onclick="nav('withdrawals')"><span class="icon">⬆️</span> Withdrawals</div>
+      <div class="nav-item" onclick="nav('rounds')"><span class="icon">📋</span> Round History</div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn btn-outline btn-full btn-sm" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <main class="main">
+
+    <!-- Dashboard -->
+    <div id="page-dashboard" class="page active">
+      <div class="page-header">
+        <h1>Dashboard</h1>
+        <p>Overview of 3 Batti Game</p>
+      </div>
+      <div class="stats-grid" id="dash-stats">
+        <div class="stat-card"><div class="stat-value stat-blue" id="s-users">—</div><div class="stat-label">Total Users</div></div>
+        <div class="stat-card"><div class="stat-value stat-green" id="s-deposits">—</div><div class="stat-label">Pending Deposits</div></div>
+        <div class="stat-card"><div class="stat-value stat-yellow" id="s-withdrawals">—</div><div class="stat-label">Pending Withdrawals</div></div>
+        <div class="stat-card"><div class="stat-value stat-blue" id="s-phase">—</div><div class="stat-label">Game Phase</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">⏱️ Next Scheduled Game</div>
+        <div id="next-game-info" style="font-size:18px;font-weight:600;color:var(--yellow)">Loading...</div>
+        <div class="countdown-big stat-blue" id="dash-countdown">—</div>
+      </div>
+      <div class="card">
+        <div class="card-title">📅 Today's Game Schedule (IST)</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          <div class="badge badge-yellow" style="padding:8px 16px;font-size:14px;">09:00 AM</div>
+          <div class="badge badge-yellow" style="padding:8px 16px;font-size:14px;">01:00 PM</div>
+          <div class="badge badge-yellow" style="padding:8px 16px;font-size:14px;">05:00 PM</div>
+          <div class="badge badge-yellow" style="padding:8px 16px;font-size:14px;">09:00 PM</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Control -->
+    <div id="page-game" class="page">
+      <div class="page-header"><h1>Game Control</h1><p>Set results and monitor live bets</p></div>
+      <div id="game-phase-card" class="phase-card">
+        <div id="phase-dot" class="phase-dot phase-waiting"></div>
+        <div>
+          <div style="font-weight:700;font-size:16px;" id="phase-label">Waiting</div>
+          <div style="font-size:12px;color:var(--text2);" id="phase-sub">Next game: —</div>
+        </div>
+        <div style="margin-left:auto;font-size:24px;font-weight:700;font-family:monospace;color:var(--blue);" id="game-countdown">—</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🎯 Set Next Result</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Select color and number for the next result. If not set, system picks randomly.</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text2);">Select Color:</div>
+        <div class="color-btns">
+          <button class="color-btn red" onclick="selectColor('red')">🔴 Red (2x)</button>
+          <button class="color-btn yellow" onclick="selectColor('yellow')">🟡 Yellow (2x)</button>
+          <button class="color-btn green" onclick="selectColor('green')">🟢 Green (2x)</button>
+        </div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text2);">Select Number (0-9):</div>
+        <div class="num-btns" id="num-btns-container">
+          <button class="num-btn" onclick="selectNum(0)">0</button>
+          <button class="num-btn" onclick="selectNum(1)">1</button>
+          <button class="num-btn" onclick="selectNum(2)">2</button>
+          <button class="num-btn" onclick="selectNum(3)">3</button>
+          <button class="num-btn" onclick="selectNum(4)">4</button>
+          <button class="num-btn" onclick="selectNum(5)">5</button>
+          <button class="num-btn" onclick="selectNum(6)">6</button>
+          <button class="num-btn" onclick="selectNum(7)">7</button>
+          <button class="num-btn" onclick="selectNum(8)">8</button>
+          <button class="num-btn" onclick="selectNum(9)">9</button>
+        </div>
+        <div id="result-preview" style="font-size:14px;color:var(--text2);margin-bottom:12px;">Selected: None</div>
+        <div id="set-result-alert" class="alert alert-success" style="display:none"></div>
+        <button class="btn btn-warning" onclick="setResult()">Set Next Result</button>
+        <button class="btn btn-outline" onclick="clearResult()" style="margin-left:8px;">Clear (Random)</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">📊 Live Bets (Current Round)</div>
+        <div id="live-bets-content">Loading...</div>
+      </div>
+    </div>
+
+    <!-- UPI Settings -->
+    <div id="page-upi" class="page">
+      <div class="page-header"><h1>UPI Settings</h1><p>Manage payment details shown to users</p></div>
+      <div class="card">
+        <div class="card-title">💳 UPI Payment Details</div>
+        <div id="upi-alert" class="alert alert-success" style="display:none"></div>
+        <div style="margin-bottom:14px;">
+          <label class="label">UPI ID</label>
+          <input type="text" id="upi-id-input" class="input" placeholder="yourname@upi" />
+        </div>
+        <div style="margin-bottom:14px;">
+          <label class="label">UPI Name (shown to users)</label>
+          <input type="text" id="upi-name-input" class="input" placeholder="3 Batti Game" />
+        </div>
+        <div style="margin-bottom:16px;">
+          <label class="label">Current UPI ID (as shown to users)</label>
+          <div class="upi-display">
+            <span class="upi-id-text" id="upi-display-text">Not set</span>
+            <button class="copy-btn" id="copy-upi-btn" onclick="copyUpi()">Copy</button>
+          </div>
+        </div>
+        <button class="btn btn-success" onclick="saveUpiSettings()">Save UPI Settings</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">ℹ️ Supported UPI Apps</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;">
+          <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
+            <div style="font-size:28px">📱</div>
+            <div style="font-size:13px;font-weight:600;margin-top:8px;">PhonePe</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
+            <div style="font-size:28px">🔵</div>
+            <div style="font-size:13px;font-weight:600;margin-top:8px;">Google Pay</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
+            <div style="font-size:28px">💙</div>
+            <div style="font-size:13px;font-weight:600;margin-top:8px;">Paytm</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:8px;padding:14px;text-align:center;">
+            <div style="font-size:28px">📲</div>
+            <div style="font-size:13px;font-weight:600;margin-top:8px;">Other UPI</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Users -->
+    <div id="page-users" class="page">
+      <div class="page-header"><h1>Users</h1><p>Manage registered users</p></div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <input class="input" id="user-search" placeholder="Search by name or phone..." style="max-width:300px;" oninput="filterUsers()" />
+          <button class="btn btn-outline btn-sm" onclick="loadUsers()">↻ Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Balance</th><th>Referral Code</th><th>Joined</th><th>Actions</th></tr></thead>
+            <tbody id="users-tbody"><tr><td colspan="7" style="text-align:center;color:var(--text2);padding:24px">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Add balance modal -->
+      <div id="balance-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:none;align-items:center;justify-content:center;">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px;width:340px;">
+          <h3 style="margin-bottom:16px;">Add Balance</h3>
+          <div id="balance-user-info" style="color:var(--text2);font-size:13px;margin-bottom:12px;"></div>
+          <label class="label">Amount (₹)</label>
+          <input type="number" id="balance-amount" class="input" placeholder="Enter amount" style="margin-bottom:16px;" />
+          <div id="balance-alert" class="alert alert-success" style="display:none"></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-success" onclick="confirmAddBalance()">Add Balance</button>
+            <button class="btn btn-outline" onclick="closeBalanceModal()">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Deposits -->
+    <div id="page-deposits" class="page">
+      <div class="page-header"><h1>Deposits</h1><p>Review and approve pending deposit requests</p></div>
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('deposits','pending-tab')">Pending</div>
+        <div class="tab" onclick="switchTab('deposits','all-tab')">All Deposits</div>
+      </div>
+      <div id="pending-tab" class="tab-content active">
+        <div class="card">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+            <button class="btn btn-outline btn-sm" onclick="loadPendingDeposits()">↻ Refresh</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>User</th><th>Amount</th><th>UTR ID</th><th>App</th><th>Date</th><th>Actions</th></tr></thead>
+              <tbody id="pending-deposits-tbody"><tr><td colspan="7" style="text-align:center;color:var(--text2);padding:24px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div id="all-tab" class="tab-content">
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>User</th><th>Amount</th><th>UTR</th><th>Status</th><th>Date</th></tr></thead>
+              <tbody id="all-deposits-tbody"><tr><td colspan="6" style="text-align:center;color:var(--text2);padding:24px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Withdrawals -->
+    <div id="page-withdrawals" class="page">
+      <div class="page-header"><h1>Withdrawals</h1><p>Review and process withdrawal requests</p></div>
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('withdrawals','w-pending-tab')">Pending</div>
+        <div class="tab" onclick="switchTab('withdrawals','w-all-tab')">All Withdrawals</div>
+      </div>
+      <div id="w-pending-tab" class="tab-content active">
+        <div class="card">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+            <button class="btn btn-outline btn-sm" onclick="loadPendingWithdrawals()">↻ Refresh</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>User</th><th>Amount</th><th>Details</th><th>Date</th><th>Actions</th></tr></thead>
+              <tbody id="pending-withdrawals-tbody"><tr><td colspan="6" style="text-align:center;color:var(--text2);padding:24px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div id="w-all-tab" class="tab-content">
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>User</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+              <tbody id="all-withdrawals-tbody"><tr><td colspan="5" style="text-align:center;color:var(--text2);padding:24px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Round History -->
+    <div id="page-rounds" class="page">
+      <div class="page-header"><h1>Round History</h1><p>All game rounds and results</p></div>
+      <div class="card">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+          <button class="btn btn-outline btn-sm" onclick="loadRounds()">↻ Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Round</th><th>Color</th><th>Number</th><th>Schedule</th><th>Date</th></tr></thead>
+            <tbody id="rounds-tbody"><tr><td colspan="5" style="text-align:center;color:var(--text2);padding:24px">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const API = '';
+let selectedColor = null, selectedNum = null;
+let allUsers = [], balanceUserId = null, balanceUsername = '';
+let gameInterval = null, activePage = 'dashboard';
+
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(API + path, opts);
+  return r.json();
+}
+
+async function doLogin() {
+  const phone = document.getElementById('login-phone').value;
+  const password = document.getElementById('login-password').value;
+  const err = document.getElementById('login-error');
+  try {
+    const r = await api('POST', '/api/auth/login', { phone, password });
+    if (r.isAdmin) {
+      document.getElementById('login-page').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      startDashboard();
+    } else {
+      err.textContent = 'Not an admin account.';
+      err.style.display = 'block';
+    }
+  } catch(e) {
+    err.textContent = 'Login failed. Check credentials.';
+    err.style.display = 'block';
+  }
+}
+
+async function doLogout() {
+  await api('POST', '/api/auth/logout', {});
+  location.reload();
+}
+
+function nav(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => { if (n.textContent.trim().toLowerCase().includes(page.substring(0,4))) n.classList.add('active'); });
+  activePage = page;
+  if (page === 'dashboard') startDashboard();
+  else if (page === 'game') { loadGameState(); setInterval(() => { if(activePage==='game') loadGameState(); }, 3000); }
+  else if (page === 'users') loadUsers();
+  else if (page === 'deposits') { loadPendingDeposits(); loadAllDeposits(); }
+  else if (page === 'withdrawals') { loadPendingWithdrawals(); loadAllWithdrawals(); }
+  else if (page === 'upi') loadUpiSettings();
+  else if (page === 'rounds') loadRounds();
+}
+
+function startDashboard() {
+  loadDashboardStats();
+  clearInterval(gameInterval);
+  gameInterval = setInterval(() => { if(activePage==='dashboard') loadDashboardStats(); }, 5000);
+}
+
+async function loadDashboardStats() {
+  try {
+    const [stateR, pendingR, usersR] = await Promise.all([
+      api('GET', '/api/game/state'),
+      api('GET', '/api/admin/pending-transactions'),
+      api('GET', '/api/admin/users'),
+    ]);
+    const pending = Array.isArray(pendingR) ? pendingR : [];
+    const deposits = pending.filter(t => t.type === 'deposit').length;
+    const withdrawals = pending.filter(t => t.type === 'withdrawal').length;
+    document.getElementById('s-users').textContent = Array.isArray(usersR) ? usersR.length : '—';
+    document.getElementById('s-deposits').textContent = deposits;
+    document.getElementById('s-withdrawals').textContent = withdrawals;
+    document.getElementById('s-phase').textContent = (stateR.phase || '—').toUpperCase();
+    document.getElementById('next-game-info').textContent = stateR.nextScheduledTime ? `Next game: ${stateR.nextScheduledTime}` : '—';
+    const cd = stateR.countdown || 0;
+    document.getElementById('dash-countdown').textContent = formatTime(cd);
+  } catch(e) {}
+}
+
+async function loadGameState() {
+  try {
+    const [stateR, liveR] = await Promise.all([
+      api('GET', '/api/game/state'),
+      api('GET', '/api/game/live-bets'),
+    ]);
+    const phase = stateR.phase || 'waiting';
+    const pd = document.getElementById('phase-dot');
+    pd.className = 'phase-dot phase-' + phase;
+    document.getElementById('phase-label').textContent = phase.toUpperCase();
+    document.getElementById('phase-sub').textContent = `Next game: ${stateR.nextScheduledTime || '—'}`;
+    document.getElementById('game-countdown').textContent = formatTime(stateR.countdown || 0);
+
+    // Live bets
+    const lb = document.getElementById('live-bets-content');
+    if (liveR && liveR.colors) {
+      const total = liveR.total || 1;
+      const colors = liveR.colors;
+      lb.innerHTML = `
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Total bets: <strong style="color:var(--text)">₹${(liveR.total||0).toLocaleString()}</strong> | Count: <strong style="color:var(--text)">${liveR.betCount||0}</strong></div>
+        ${['red','yellow','green'].map(c => `
+          <div class="live-bar">
+            <div class="live-bar-label"><span style="color:var(--text);text-transform:capitalize;">🔴🟡🟢`.replace('🔴🟡🟢',c==='red'?'🔴':c==='yellow'?'🟡':'🟢') + ` ${c.charAt(0).toUpperCase()+c.slice(1)}</span><span>₹${(colors[c]?.total||0).toLocaleString()} (${colors[c]?.count||0} bets)</span></div>
+            <div class="live-bar-track"><div class="live-bar-fill fill-${c}" style="width:${total>0?Math.round((colors[c]?.total||0)/total*100):0}%"></div></div>
+          </div>
+        `).join('')}
+        <div style="margin-top:16px;font-size:13px;font-weight:600;color:var(--text2);">Numbers:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+          ${Object.entries(liveR.numbers||{}).map(([n,s])=>`<div style="background:var(--bg3);border-radius:6px;padding:8px 12px;font-size:12px;"><div style="font-size:16px;font-weight:700;color:var(--blue)">${n}</div><div style="color:var(--text2)">₹${(s.total||0).toLocaleString()}</div><div style="color:var(--text2)">${s.count||0} bets</div></div>`).join('')}
+        </div>
+      `;
+    } else {
+      lb.innerHTML = '<div style="color:var(--text2);text-align:center;padding:16px;">No bets yet for current round</div>';
+    }
+  } catch(e) {}
+}
+
+function selectColor(c) {
+  selectedColor = c;
+  document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelector(`.color-btn.${c}`).classList.add('selected');
+  updatePreview();
+}
+
+function selectNum(n) {
+  selectedNum = n;
+  document.querySelectorAll('.num-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.num-btn')[n].classList.add('selected');
+  updatePreview();
+}
+
+function updatePreview() {
+  const p = document.getElementById('result-preview');
+  let txt = 'Selected: ';
+  if (!selectedColor && selectedNum === null) { txt += 'None (will be random)'; }
+  else {
+    if (selectedColor) txt += selectedColor.toUpperCase();
+    if (selectedNum !== null) txt += (selectedColor ? ' + ' : '') + `Number ${selectedNum}`;
+  }
+  p.textContent = txt;
+}
+
+async function setResult() {
+  if (!selectedColor) { alert('Please select a color'); return; }
+  const body = { color: selectedColor };
+  if (selectedNum !== null) body.number = selectedNum;
+  const r = await api('POST', '/api/admin/set-result', body);
+  const el = document.getElementById('set-result-alert');
+  el.textContent = r.message || (r.success ? 'Result set!' : r.error);
+  el.className = 'alert ' + (r.success ? 'alert-success' : 'alert-error');
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+async function clearResult() {
+  const r = await api('POST', '/api/admin/set-result', { color: ['red','yellow','green'][Math.floor(Math.random()*3)] });
+  selectedColor = null; selectedNum = null;
+  document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.num-btn').forEach(b => b.classList.remove('selected'));
+  updatePreview();
+}
+
+async function loadUpiSettings() {
+  const r = await api('GET', '/api/admin/upi-settings');
+  document.getElementById('upi-id-input').value = r.upiId || '';
+  document.getElementById('upi-name-input').value = r.upiName || '';
+  document.getElementById('upi-display-text').textContent = r.upiId || 'Not set';
+}
+
+async function saveUpiSettings() {
+  const upiId = document.getElementById('upi-id-input').value.trim();
+  const upiName = document.getElementById('upi-name-input').value.trim();
+  const r = await api('POST', '/api/admin/upi-settings', { upiId, upiName });
+  const el = document.getElementById('upi-alert');
+  el.textContent = r.success ? 'UPI settings saved!' : (r.error || 'Failed');
+  el.className = 'alert ' + (r.success ? 'alert-success' : 'alert-error');
+  el.style.display = 'block';
+  document.getElementById('upi-display-text').textContent = upiId || 'Not set';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+function copyUpi() {
+  const text = document.getElementById('upi-display-text').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-upi-btn');
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+async function loadUsers() {
+  const r = await api('GET', '/api/admin/users');
+  allUsers = Array.isArray(r) ? r : [];
+  renderUsers(allUsers);
+}
+
+function filterUsers() {
+  const q = document.getElementById('user-search').value.toLowerCase();
+  const filtered = allUsers.filter(u => u.username.toLowerCase().includes(q) || u.phone.includes(q));
+  renderUsers(filtered);
+}
+
+function renderUsers(list) {
+  const tbody = document.getElementById('users-tbody');
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:24px">No users found</td></tr>'; return; }
+  tbody.innerHTML = list.map(u => `
+    <tr>
+      <td style="color:var(--text2)">#${u.id}</td>
+      <td><strong>${u.username}</strong></td>
+      <td style="font-family:monospace">${u.phone}</td>
+      <td style="color:var(--green);font-weight:600">₹${(u.balance||0).toLocaleString()}</td>
+      <td><span class="badge badge-blue">${u.referralCode}</span></td>
+      <td style="color:var(--text2);font-size:12px">${new Date(u.createdAt).toLocaleDateString('en-IN')}</td>
+      <td><button class="btn btn-success btn-sm" onclick="openBalanceModal(${u.id},'${u.username}',${u.balance})">Add Balance</button></td>
+    </tr>
+  `).join('');
+}
+
+function openBalanceModal(id, name, bal) {
+  balanceUserId = id; balanceUsername = name;
+  document.getElementById('balance-user-info').textContent = `User: ${name} | Current balance: ₹${bal.toLocaleString()}`;
+  document.getElementById('balance-amount').value = '';
+  document.getElementById('balance-alert').style.display = 'none';
+  const m = document.getElementById('balance-modal');
+  m.style.display = 'flex';
+}
+
+function closeBalanceModal() {
+  document.getElementById('balance-modal').style.display = 'none';
+}
+
+async function confirmAddBalance() {
+  const amount = parseInt(document.getElementById('balance-amount').value);
+  if (!amount || amount <= 0) return;
+  const r = await api('POST', '/api/admin/add-balance', { userId: balanceUserId, amount });
+  const el = document.getElementById('balance-alert');
+  el.textContent = r.success ? `Added ₹${amount} successfully!` : (r.error || 'Failed');
+  el.className = 'alert ' + (r.success ? 'alert-success' : 'alert-error');
+  el.style.display = 'block';
+  if (r.success) { setTimeout(() => { closeBalanceModal(); loadUsers(); }, 1500); }
+}
+
+async function loadPendingDeposits() {
+  const r = await api('GET', '/api/admin/pending-transactions');
+  const pending = Array.isArray(r) ? r.filter(t => t.type === 'deposit') : [];
+  const tbody = document.getElementById('pending-deposits-tbody');
+  if (!pending.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:24px">No pending deposits</td></tr>'; return; }
+  tbody.innerHTML = pending.map(t => `
+    <tr>
+      <td style="color:var(--text2)">#${t.id}</td>
+      <td><strong>${t.username||'—'}</strong><div style="font-size:11px;color:var(--text2)">${t.phone||''}</div></td>
+      <td style="color:var(--green);font-weight:700">₹${t.amount.toLocaleString()}</td>
+      <td style="font-family:monospace;color:var(--yellow)">${t.utrId||'—'}</td>
+      <td>${t.upiApp||'—'}</td>
+      <td style="font-size:12px;color:var(--text2)">${new Date(t.createdAt).toLocaleString('en-IN')}</td>
+      <td>
+        <div class="btn-actions">
+          <button class="btn btn-success btn-sm" onclick="approveDeposit(${t.id})">✓ Approve</button>
+          <button class="btn btn-danger btn-sm" onclick="rejectTxn(${t.id})">✗ Reject</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function loadAllDeposits() {
+  const r = await api('GET', '/api/admin/all-transactions');
+  const all = Array.isArray(r) ? r.filter(t => t.type === 'deposit') : [];
+  const tbody = document.getElementById('all-deposits-tbody');
+  if (!all.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:24px">No deposits found</td></tr>'; return; }
+  tbody.innerHTML = all.map(t => `
+    <tr>
+      <td style="color:var(--text2)">#${t.id}</td>
+      <td>#${t.userId}</td>
+      <td style="color:var(--green);font-weight:600">₹${t.amount.toLocaleString()}</td>
+      <td style="font-family:monospace">${t.utrId||'—'}</td>
+      <td><span class="badge ${t.status==='completed'?'badge-green':t.status==='pending'?'badge-yellow':'badge-red'}">${t.status}</span></td>
+      <td style="font-size:12px;color:var(--text2)">${new Date(t.createdAt).toLocaleString('en-IN')}</td>
+    </tr>
+  `).join('');
+}
+
+async function approveDeposit(id) {
+  if (!confirm('Approve this deposit?')) return;
+  const r = await api('POST', '/api/admin/approve-deposit', { transactionId: id });
+  if (r.success) { loadPendingDeposits(); loadAllDeposits(); loadDashboardStats(); }
+  else alert(r.error || 'Failed');
+}
+
+async function rejectTxn(id) {
+  const reason = prompt('Reason for rejection (optional):') || 'Rejected by admin';
+  const r = await api('POST', '/api/admin/reject-transaction', { transactionId: id, reason });
+  if (r.success) { loadPendingDeposits(); loadPendingWithdrawals(); loadDashboardStats(); }
+  else alert(r.error || 'Failed');
+}
+
+async function loadPendingWithdrawals() {
+  const r = await api('GET', '/api/admin/pending-transactions');
+  const pending = Array.isArray(r) ? r.filter(t => t.type === 'withdrawal') : [];
+  const tbody = document.getElementById('pending-withdrawals-tbody');
+  if (!pending.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:24px">No pending withdrawals</td></tr>'; return; }
+  tbody.innerHTML = pending.map(t => `
+    <tr>
+      <td style="color:var(--text2)">#${t.id}</td>
+      <td><strong>${t.username||'—'}</strong><div style="font-size:11px;color:var(--text2)">${t.phone||''}</div></td>
+      <td style="color:var(--red);font-weight:700">₹${t.amount.toLocaleString()}</td>
+      <td style="font-size:12px;color:var(--text2)">${t.note||'—'}</td>
+      <td style="font-size:12px;color:var(--text2)">${new Date(t.createdAt).toLocaleString('en-IN')}</td>
+      <td>
+        <div class="btn-actions">
+          <button class="btn btn-success btn-sm" onclick="approveWithdrawal(${t.id})">✓ Process</button>
+          <button class="btn btn-danger btn-sm" onclick="rejectTxn(${t.id})">✗ Reject</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function loadAllWithdrawals() {
+  const r = await api('GET', '/api/admin/all-transactions');
+  const all = Array.isArray(r) ? r.filter(t => t.type === 'withdrawal') : [];
+  const tbody = document.getElementById('all-withdrawals-tbody');
+  if (!all.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:24px">No withdrawals found</td></tr>'; return; }
+  tbody.innerHTML = all.map(t => `
+    <tr>
+      <td style="color:var(--text2)">#${t.id}</td>
+      <td>#${t.userId}</td>
+      <td style="color:var(--red);font-weight:600">₹${t.amount.toLocaleString()}</td>
+      <td><span class="badge ${t.status==='completed'?'badge-green':t.status==='pending'?'badge-yellow':'badge-red'}">${t.status}</span></td>
+      <td style="font-size:12px;color:var(--text2)">${new Date(t.createdAt).toLocaleString('en-IN')}</td>
+    </tr>
+  `).join('');
+}
+
+async function approveWithdrawal(id) {
+  if (!confirm('Mark this withdrawal as processed?')) return;
+  const r = await api('POST', '/api/admin/approve-withdrawal', { transactionId: id });
+  if (r.success) { loadPendingWithdrawals(); loadAllWithdrawals(); loadDashboardStats(); }
+  else alert(r.error || 'Failed');
+}
+
+async function loadRounds() {
+  const r = await api('GET', '/api/admin/rounds');
+  const rounds = Array.isArray(r) ? r : [];
+  const tbody = document.getElementById('rounds-tbody');
+  if (!rounds.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:24px">No rounds yet</td></tr>'; return; }
+  tbody.innerHTML = rounds.map(rd => `
+    <tr>
+      <td style="font-weight:600">#${rd.roundNumber}</td>
+      <td><div style="display:flex;align-items:center;gap:8px;"><div class="dot dot-${rd.resultColor}"></div>${rd.resultColor.charAt(0).toUpperCase()+rd.resultColor.slice(1)}</div></td>
+      <td style="font-size:18px;font-weight:700;color:var(--blue)">${rd.resultNumber}</td>
+      <td style="color:var(--yellow)">${rd.scheduledTime||'—'}</td>
+      <td style="font-size:12px;color:var(--text2)">${new Date(rd.createdAt).toLocaleString('en-IN')}</td>
+    </tr>
+  `).join('');
+}
+
+function switchTab(section, tabId) {
+  const allTabs = document.querySelectorAll(`#page-${section} .tab`);
+  const allContents = document.querySelectorAll(`#page-${section} .tab-content`);
+  allTabs.forEach(t => t.classList.remove('active'));
+  allContents.forEach(c => c.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+function formatTime(seconds) {
+  if (seconds <= 0) return '00:00';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+document.getElementById('login-phone').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+document.getElementById('login-password').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+</script>
+</body>
+</html>

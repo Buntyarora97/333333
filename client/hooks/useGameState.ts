@@ -6,20 +6,19 @@ interface GameRoundHistory {
   id: number;
   roundNumber: number;
   resultColor: string;
+  resultNumber: number;
+  scheduledTime: string | null;
   createdAt: string;
 }
 
 interface GameState {
   currentRound: number;
-  phase: "betting" | "result";
+  phase: "waiting" | "betting" | "result";
   countdown: number;
   lastResult: string | null;
+  lastResultNumber: number | null;
+  nextScheduledTime: string | null;
   history: GameRoundHistory[];
-}
-
-interface BetResponse {
-  bet: any;
-  balance: number;
 }
 
 export function useGameState() {
@@ -27,16 +26,23 @@ export function useGameState() {
 
   const { data: gameState, isLoading } = useQuery<GameState>({
     queryKey: ["/api/game/state"],
-    refetchInterval: 1000,
+    refetchInterval: 2000,
     staleTime: 500,
   });
 
   const placeBetMutation = useMutation({
-    mutationFn: async (data: { betColor: string; betAmount: number }) => {
+    mutationFn: async (data: {
+      betType: "color" | "number";
+      betColor?: string;
+      betNumber?: number;
+      betAmount: number;
+    }) => {
       const res = await apiRequest("POST", "/api/game/bet", data);
-      return res.json() as Promise<BetResponse>;
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Bet failed");
+      return json;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/bets"] });
@@ -46,8 +52,16 @@ export function useGameState() {
     },
   });
 
-  const placeBet = async (betColor: string, betAmount: number) => {
-    return placeBetMutation.mutateAsync({ betColor, betAmount });
+  const placeBet = async (
+    betType: "color" | "number",
+    betColorOrNumber: string | number,
+    betAmount: number
+  ) => {
+    if (betType === "color") {
+      return placeBetMutation.mutateAsync({ betType, betColor: betColorOrNumber as string, betAmount });
+    } else {
+      return placeBetMutation.mutateAsync({ betType, betNumber: betColorOrNumber as number, betAmount });
+    }
   };
 
   return {
@@ -64,11 +78,7 @@ export function useUserBets() {
     queryKey: ["/api/user/bets"],
     staleTime: 5000,
   });
-
-  return {
-    bets: bets ?? [],
-    isLoading,
-  };
+  return { bets: bets ?? [], isLoading };
 }
 
 export function useLeaderboard() {
@@ -76,9 +86,5 @@ export function useLeaderboard() {
     queryKey: ["/api/leaderboard"],
     staleTime: 30000,
   });
-
-  return {
-    leaderboard: leaderboard ?? [],
-    isLoading,
-  };
+  return { leaderboard: leaderboard ?? [], isLoading };
 }

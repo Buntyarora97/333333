@@ -37,3 +37,10 @@ externalPort = 80
 [deployment]
 deploymentTarget = "autoscale"
 run = ["npm", "run", "server:prod"]
+
+[userenv]
+
+[userenv.shared]
+NEON_DATABASE_URL = "postgresql://neondb_owner:npg_7IWjgTvCpe6Y@ep-jolly-art-anzzj0se-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+ADMIN_PHONE = "9999999999"
+ADMIN_PASSWORD = "admin123"

@@ -113,25 +113,45 @@ export default function SettingsScreen() {
         )}
       </View>
 
+      {/* Referral Banner */}
+      {user?.referralCode && (
+        <View style={styles.referralCard}>
+          <View style={styles.referralRow}>
+            <Feather name="share-2" size={16} color={GameColors.yellow} />
+            <ThemedText style={styles.referralTitle}>Your Referral Code</ThemedText>
+          </View>
+          <ThemedText style={styles.referralCode}>{user.referralCode}</ThemedText>
+          <ThemedText style={styles.referralInfo}>
+            Earn 5% commission on every bet your friends place. L2 earns 2.5%.
+          </ThemedText>
+        </View>
+      )}
+
       <View style={styles.infoSection}>
         <ThemedText style={styles.infoTitle}>How to Play</ThemedText>
         <View style={styles.infoCard}>
           <View style={styles.infoRow}>
-            <Feather name="circle" size={16} color={GameColors.red} />
-            <ThemedText style={styles.infoText}>
-              Choose Red, Yellow, or Green
-            </ThemedText>
-          </View>
-          <View style={styles.infoRow}>
             <Feather name="clock" size={16} color={GameColors.yellow} />
             <ThemedText style={styles.infoText}>
-              Place your bet before timer ends
+              4 games daily: 9AM, 1PM, 5PM, 9PM IST
             </ThemedText>
           </View>
           <View style={styles.infoRow}>
-            <Feather name="check-circle" size={16} color={GameColors.green} />
+            <Feather name="circle" size={16} color={GameColors.red} />
             <ThemedText style={styles.infoText}>
-              Win 2.5x your bet if you guess correctly!
+              Color Bet (Red/Yellow/Green) — Win 2x
+            </ThemedText>
+          </View>
+          <View style={styles.infoRow}>
+            <Feather name="hash" size={16} color="#388bfd" />
+            <ThemedText style={styles.infoText}>
+              Number Bet (0–9) — Win 9x your stake
+            </ThemedText>
+          </View>
+          <View style={styles.infoRow}>
+            <Feather name="info" size={16} color={Colors.dark.textMuted} />
+            <ThemedText style={styles.infoText}>
+              18% GST deducted on winnings only
             </ThemedText>
           </View>
         </View>
@@ -255,5 +275,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.dark.textMuted,
     textAlign: "center",
+  },
+  referralCard: {
+    backgroundColor: "rgba(210,153,34,0.1)",
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: "rgba(210,153,34,0.3)",
+  },
+  referralRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  referralTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: GameColors.yellow,
+  },
+  referralCode: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#FFF",
+    letterSpacing: 3,
+    marginBottom: Spacing.xs,
+    fontFamily: "monospace",
+  },
+  referralInfo: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    lineHeight: 18,
   },
 });
